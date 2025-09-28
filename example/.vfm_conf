@@ -1,0 +1,7 @@
+[paths]
+space=/home/user/virtual.mind.forest/vfm.space
+private=/home/user/virtual.mind.forest/vfm.private
+public=/home/user/virtual.mind.forest/vfm.public
+
+[settings]
+editor=code
