@@ -4,8 +4,13 @@ import configparser
 from datetime import datetime
 from pathlib import Path
 import re
-import sys
+import os, sys
 import time
+
+import shlex
+import shutil
+import subprocess
+from typing import List, Tuple, Optional
 
 CONFIG_FILE = Path(".vfm_conf")
 LIMIT_TAG_OUTPUT = 5
@@ -37,25 +42,185 @@ def load_config():
     settings = {}
     if "settings" in parser:
         settings = dict(parser["settings"])
-
+    # print(settings)
+    # print(paths)
     return paths, settings
 
+# --- Helper: find first H1 (# single hash) line ---
+def extract_h1_title(text: str) -> Optional[str]:
+    """
+    Return the first line that starts with a single '#' (space after), trimmed.
+    Skip lines starting with '##' or more.
+    """
+    for line in text.splitlines():
+        m = re.match(r'^\s*#\s+(.*\S)', line)
+        if m:
+            return m.group(1).strip()
+    return None
+
+# --- The search handler ---
+def handle_search(target: str, pattern: str, ignore_case: bool = False) -> None:
+    """
+    Search .md files under a target (keyword/path) for a regex/pattern.
+    If target == "all", search all configured paths.
+    """
+    # Load config to get paths (and ignore settings here)
+    try:
+        paths_cfg, settings = load_config()
+    except Exception:
+        # If load_config only returns paths, handle that
+        cfg = load_config()
+        if isinstance(cfg, tuple) and len(cfg) == 2:
+            paths_cfg, settings = cfg
+        else:
+            paths_cfg = cfg
+            settings = {}
+
+    # Resolve list of directories to search
+    search_dirs: List[Path] = []
+    if target == "all":
+        for p in paths_cfg.values():
+            search_dirs.append(Path(p).expanduser().resolve())
+    else:
+        if target in paths_cfg:
+            search_dirs.append(Path(paths_cfg[target]).expanduser().resolve())
+        else:
+            # treat target as a path
+            search_dirs.append(Path(target).expanduser().resolve())
+
+    # Compile regex
+    flags = re.IGNORECASE if ignore_case else 0
+    try:
+        regex = re.compile(pattern, flags)
+    except re.error as e:
+        print(f"Invalid regular expression: {e}")
+        return
+
+    # Find matches
+    matches: List[Tuple[Path, str, str]] = []  # (file_path, first_h1_or_empty, excerpt_line)
+    seen: set[Path] = set()  # keep track of files already added
+    for d in search_dirs:
+        if not d.exists() or not d.is_dir():
+            continue
+
+        for md in d.rglob("*.md"):
+            if md in seen:
+                continue
+            try:
+                text = md.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                continue
+
+            if regex.search(text):
+                h1 = extract_h1_title(text) or ""
+                # find first matching line to show a short excerpt (optional)
+                excerpt = ""
+                for line in text.splitlines():
+                    if regex.search(line):
+                        excerpt = line.strip()
+                        break
+                matches.append((md, h1, excerpt))
+                seen.add(md)
+
+    # Respond based on number of matches
+    if not matches:
+        print("No files matched the search.")
+        return
+
+    if len(matches) == 1:
+        file_path = matches[0][0]
+        print(f"One match: {file_path}")
+        handle_open(filename=file_path)
+        return
+
+    # Multiple matches — present menu
+    print("Multiple matches found:")
+    for i, (fp, h1, excerpt) in enumerate(matches, start=1):
+        # Show path relative to cwd if possible to keep it concise
+        try:
+            rel = fp.relative_to(Path.cwd())
+        except Exception:
+            rel = fp
+        title_display = f" — {h1}" if h1 else ""
+        excerpt_display = f" | {excerpt}" if excerpt else ""
+        print(f"{i}. {rel}{title_display}{excerpt_display}")
+
+    # Prompt user for selection
+    try:
+        choice = input("Select file number to open (or press Enter to cancel): ").strip()
+        if not choice:
+            print("Canceled.")
+            return
+        idx = int(choice)
+        if 1 <= idx <= len(matches):
+            chosen = matches[idx - 1][0]
+            handle_open(filename=chosen)
+        else:
+            print("Invalid selection.")
+    except ValueError:
+        print("Invalid input. Please enter a number.")
+
+def handle_open(filename: str, target: str=None):
+    """Open a note in the editor defined in config (settings.editor)."""
+    paths, settings = load_config()
+
+    # Resolve base directory
+    if target in paths:
+        base_path = Path(paths[target]).expanduser().resolve()
+    elif target:
+        base_path = Path(target).expanduser().resolve()
+    
+    file_path = base_path / filename if target else filename
+    if not file_path.exists():
+        print(f"Error: File '{file_path}' does not exist.")
+        return
+
+    # Editor from config
+    editor = settings.get("editor")
+    if not editor:
+        # fallback to system default
+        if os.name == "nt":
+            os.startfile(file_path)  # type: ignore[attr-defined]
+        elif sys.platform == "darwin":
+            subprocess.run(["open", str(file_path)])
+        else:
+            subprocess.run(["xdg-open", str(file_path)])
+        return
+
+    # Parse editor string (can include flags)
+    parts = shlex.split(editor)
+
+    # If first part is not a path, try to resolve with shutil.which
+    exe = parts[0]
+    if not Path(exe).exists():
+        resolved = shutil.which(exe)
+        if resolved:
+            parts[0] = resolved
+        else:
+            print(f"Error: Editor '{exe}' not found on PATH.")
+            return
+
+    # Final command
+    cmd = parts + [str(file_path)]
+    try:
+        subprocess.run(cmd)
+    except Exception as e:
+        print(f"Error launching editor: {e}")
 
 def handle_stats(target: str):
     """Show statistics about notes in a given space (or all)."""
     from collections import Counter
 
-    config = load_config()
+    paths, settings = load_config()
 
     # If "all", scan all spaces
     if target == "all":
-        paths = [Path(p) for p in config.values()]
+        paths = [Path(p) for p in paths.values()]
     else:
-        if target in config:
-            paths = [Path(config[target])]
+        if target in paths:
+            paths = [Path(paths[target])]
         else:
             paths = [Path(target).expanduser().resolve()]
-
     note_files = []
     for path in paths:
         if path.exists():
@@ -87,13 +252,14 @@ def handle_stats(target: str):
         for tag, count in tag_counter.most_common(LIMIT_TAG_OUTPUT):
             print(f"  {tag}: {count}")
 
-def handle_new(target):
+def handle_new(target: str):
     """Handle the 'new' command"""
-    config = load_config()
+    paths, settings = load_config()
+
 
     # Resolve target as keyword or path
-    if target in config:
-        path = Path(config[target]).expanduser().resolve()
+    if target in paths:
+        path = Path(paths[target]).expanduser().resolve()
     else:
         path = Path(target).expanduser().resolve()
 
@@ -115,6 +281,8 @@ def handle_new(target):
     # Create file
     full_path.write_text(f"{TAGS}\n# {user_input} - {epoch}\n\n_Created:_ {epoch} // {datetime.now()}", encoding="utf-8")
     print(f"Created: {full_path}")
+
+    handle_open(filename=full_path)
 
 def handle_init():
     """Handle the 'init' command: create directories + config"""
@@ -155,14 +323,21 @@ def arguments():
     new_parser.add_argument("target", type=str, help="Path or keyword from config")
 
     # "stats" command
-    stats_parser = subparsers.add_parser("stats", help="Output statistics: number of notes, most active space, total words.")
+    stats_parser = subparsers.add_parser("stats", help="Output statistics: number of notes, most active space, total words")
     stats_parser.add_argument("target", type=str, help="Path or keyword from config")
 
+    # "search" command
+    search_parser = subparsers.add_parser("search", help="egrep-like search in a space/path")
+    search_parser.add_argument("target", type=str, nargs="?", default="all", help="Optional space keyword or path to search (default: all configured spaces)")
+    search_parser.add_argument("pattern", help="Regex or plain text to search for")
+    search_parser.add_argument("-i", "--ignore-case", action="store_true", help="Perform case-insensitive search")
 
     return parser.parse_args()
 
 def main():
     args = arguments()
+
+    print(args)
 
     if args.command == "new":
         handle_new(args.target)
@@ -171,6 +346,9 @@ def main():
     elif args.command == "init":
         print("Seeding the virtual forest mind...")
         handle_init()
+    elif args.command == "search":
+        handle_search(args.target, args.pattern, args.ignore_case)
+
 
 if __name__ == "__main__":
     main()
