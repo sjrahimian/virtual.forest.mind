@@ -49,3 +49,6 @@ virtual.forest.mind/
 ├── .git/
 └── .gitignore 
 ```
+## License
+
+GNU GPLv3
