@@ -1,35 +1,38 @@
-# Building My Own Virtual.Forest.Mind
+# Virtual.Forest.Mind CLI Tool
 
-This is the story of how i ended up with "virtual.forest.mind", my personal alternative to OneNote.
+Provides commands to create, search, and open Markdown notes in user-defined spaces, using a configuration file for paths and editor settings.
 
 ```bash
- python .\vfm.py -help
-usage: vfm.py [-h] {init,new,stats} ...
+python .\vfm.py --help
+usage: vfm.py [-h] {init,new,stats,search} ...
 
 Virtual Forest Mind CLI
 
 positional arguments:
-  {init,new,stats}
-    init            Initialize directories and config
-    new             Create a new note
-    stats           Output statistics: number of notes, most active space, total words.
+  {init,new,stats,search}
+    init                Initialize directories and config
+    new                 Create a new note
+    stats               Output statistics: number of notes, most active space, total words.
+    search              egrep-like search in a space/path. Usage: vfm.py search [target] pattern
 
 options:
-  -h, --help        show this help message and exit
+  -h, --help            show this help message and exit
 ```
 
 ## Personal Knowledge Management: Goals
 
 What is the end goal of note-taking?
-* Shareability - this allows every notebook to be uploaded independent of other notebooks, or as a whole
-* Flexibility and scalability - combine notes, folders, or split them
+
+* Ease and simplicity to note-taking (*less is more* mentality)
+* Shareability
+* Flexibility and scalability
 * Version control
 
-### Final Decision
+### Why Another PKM Tool?
 
-I settled on creating a plaintext/Markdown note-taking environment as the means of recording and tracking notes, because nothing in my search for a new note-taking app came close to OneNote (that Office-style ribbon is convenient) and the notebook style that I'm familiar with. I have been playing around with [*Foam*](https://foambubble.github.io/foam/) and [*Obsidian*](https://obsidian.md/), as well as a custom Python script `vfm/vfm.py` in [virtual.forest.mind repository](https://github.com/sjrahimian/virtual.forest.mind).
+I have been playing around with [*Foam*](https://foambubble.github.io/foam/) and [*Obsidian*](https://obsidian.md/), but having my own custom Python script `vfm/vfm.py` gave some minor control over certain details of the PKM, as well as meeting the goal of being eas. I'll likely use a combination of the my script and Foam and/or Obsidian.
 
-(Read all about the journey.)[./note-my-journey-in-note-taking.md]
+(Read about my learnings and thoughts on note-taking.)[./note-my-thoughts-on-note-taking.md]
 
 Presenting a simple structure that can grow as needed:
 
@@ -49,6 +52,7 @@ virtual.forest.mind/
 ├── .git/
 └── .gitignore 
 ```
+
 ## License
 
 GNU GPLv3
