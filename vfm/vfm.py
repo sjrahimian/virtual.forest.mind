@@ -1,15 +1,29 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+vfm.py — Virtual Forest Mind CLI Tool
+
+Provides commands to create, search, and open Markdown notes in user-defined spaces, 
+  using a configuration file for paths and editor settings.
+
+Created: 2025-09-30
+"""
+
+__version__ = "0.1.1"
+__author__ = "Sama Rahimian"
+__license__ = "GNU GPLv3"
+
 import argparse
 import configparser
 from datetime import datetime
+import os
 from pathlib import Path
-import re
-import os, sys
-import time
-
 import shlex
 import shutil
 import subprocess
+import sys
+import re
+import time
 from typing import List, Tuple, Optional
 
 CONFIG_FILE = Path(".vfm_conf")
@@ -106,6 +120,7 @@ def handle_search(target: str, pattern: str, ignore_case: bool = False) -> None:
         for md in d.rglob("*.md"):
             if md in seen:
                 continue
+
             try:
                 text = md.read_text(encoding="utf-8", errors="ignore")
             except Exception:
@@ -117,7 +132,7 @@ def handle_search(target: str, pattern: str, ignore_case: bool = False) -> None:
                 excerpt = ""
                 for line in text.splitlines():
                     if regex.search(line):
-                        excerpt = line.strip()
+                        excerpt = line.strip() if len(line) <= 100 else (line[0:100].strip()) + "..."
                         break
                 matches.append((md, h1, excerpt))
                 seen.add(md)
@@ -134,31 +149,35 @@ def handle_search(target: str, pattern: str, ignore_case: bool = False) -> None:
         return
 
     # Multiple matches — present menu
-    print("Multiple matches found:")
-    for i, (fp, h1, excerpt) in enumerate(matches, start=1):
-        # Show path relative to cwd if possible to keep it concise
-        try:
-            rel = fp.relative_to(Path.cwd())
-        except Exception:
-            rel = fp
-        title_display = f" — {h1}" if h1 else ""
-        excerpt_display = f" | {excerpt}" if excerpt else ""
-        print(f"{i}. {rel}{title_display}{excerpt_display}")
+    while True:
+        print("Multiple matches found:")
+        for i, (fp, h1, excerpt) in enumerate(matches, start=1):
+            # Show path relative to cwd if possible to keep it concise
+            try:
+                fp_display = fp.relative_to(Path.cwd())
+            except Exception:
+                fp_display = fp
 
-    # Prompt user for selection
-    try:
-        choice = input("Select file number to open (or press Enter to cancel): ").strip()
-        if not choice:
-            print("Canceled.")
-            return
-        idx = int(choice)
-        if 1 <= idx <= len(matches):
-            chosen = matches[idx - 1][0]
-            handle_open(filename=chosen)
-        else:
-            print("Invalid selection.")
-    except ValueError:
-        print("Invalid input. Please enter a number.")
+            title_display = f" — {h1}" if h1 else ""
+            excerpt_display = f"   | {excerpt}" if excerpt else ""
+            print(f"{i}. {fp_display.parent.name}/{fp_display.name}{title_display}\n{excerpt_display}")
+            # print(f"  {i}. {fp_display.name}{title_display}")
+
+        # Prompt user for selection
+        try:
+            choice = input("Select file number to open (or press Enter to cancel): ").strip()
+            if not choice:
+                print("Canceled.")
+                sys.exit(0)
+
+            idx = int(choice)
+            if 1 <= idx <= len(matches):
+                chosen = matches[idx - 1][0]
+                handle_open(filename=chosen)
+            else:
+                print("Invalid selection.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
 
 def handle_open(filename: str, target: str=None):
     """Open a note in the editor defined in config (settings.editor)."""
@@ -336,9 +355,6 @@ def arguments():
 
 def main():
     args = arguments()
-
-    print(args)
-
     if args.command == "new":
         handle_new(args.target)
     elif args.command == "stats":
