@@ -1,14 +1,14 @@
 # Virtual.Forest.Mind CLI Tool
 
-## Learning About PKM
+## Summary
 
-This is the story my personal alternative to OneNote, "virtual.forest.mind", as well as learnings and thoughts on the matter.
+Learnings and thoughts on the matter of note-taking, and how "virtual.forest.mind" came to be.
 
 ## Introduction
 
-After a few days of reading and researching on note-taking and *personal knowledge management* (PKM), as well as different applications, PARA, [Zettelkasten](https://sacredkarailee.medium.com/understanding-zettelkasten-notes-d7eb3fae0c45), and it's [fleeting/reference/permanent notes](https://writing.bobdoto.computer/zettelkasten/), [second brain](https://www.ssp.sh/brain/second-brain/), [digital gardens](), plaintext, wiki, etc. Learning all that was fascinating and after reflecting a bit, I realized that creating a note vault, second brain, digital garden — whatever you want to call it — will be modelled to some extent on how that individual processes, organizes, and stores information; that is to say the virtual, physical, and mental environments are all *reflections* of one another (and while an apriori hierarchy could be established, they also simultaneously influence each other). This did not make it any less difficult for me to know where exactly to start, especially when learning about PKM. Needless to say, I was still confused and doubtful about what I need.
+After a few days of reading and researching on note-taking and *personal knowledge management* (PKM), as well as different applications, [Zettelkasten](https://sacredkarailee.medium.com/understanding-zettelkasten-notes-d7eb3fae0c45), and it's [fleeting/reference/permanent notes](https://writing.bobdoto.computer/zettelkasten/), [PARA/second brain](https://www.ssp.sh/brain/second-brain/), [digital gardens](), plaintext, wiki, etc. Learning all that was fascinating and after reflecting a bit, I realized that creating a note vault, second brain, digital garden — whichever method and whatever you want to call it — will be modelled to some extent on how an individual processes, organizes, and stores information; that is to say there are different methods and tools for different people (there is no "one size fits all"). Furthermore the virtual, physical, and mental models of how someone organizes information are all *reflections* of one another (and while an *a priori* hierarchy could be established, they will also simultaneously influence each other). This did not make it any less difficult for me to know where exactly to start my own PKM. I was still confused and doubtful about which PKM method and tools where right for me, and so I kept searching.
 
-[*Is the concept of Personal Knowledge Management flawed?* by ElrioVanPutten](https://www.reddit.com/r/ObsidianMD/comments/zkefis/is_the_concept_of_personal_knowledge_management), [*Networked Thought* by jzhao.xyz](https://jzhao.xyz/posts/networked-thought), and [*Stop Procrastinating With Note-Taking Apps Like Obsidian, Roam, Logseq* by Sam Matla](https://www.youtube.com/watch?v=baKCC2uTbRc) were important material that provided well-thought opposing views to the note-taking rabbit hole. I had been drawn in by all the note-taking "glitter", and lost sight of __*means*__ and __*ends*__. It was still a worthwhile learning, but definitely can get caught up in the hype, and not end up writing. Ultimately I concluded that taking notes and concocting a structure is a personal endeavour, the initial step in building an organic environment that meets one's requirements, flow, use case, groove, feng shui, etc., i.e., find what works for you and start.
+[*Is the concept of Personal Knowledge Management flawed?* by ElrioVanPutten](https://www.reddit.com/r/ObsidianMD/comments/zkefis/is_the_concept_of_personal_knowledge_management), [*Networked Thought* by jzhao.xyz](https://jzhao.xyz/posts/networked-thought), and [*Stop Procrastinating With Note-Taking Apps Like Obsidian, Roam, Logseq* by Sam Matla](https://www.youtube.com/watch?v=baKCC2uTbRc) were important material that provided well-thought opposing views to the note-taking rabbit hole. I had been drawn in by all the note-taking "glitter", and lost sight of __*means*__ and __*ends*__. It was still a worthwhile learning, but one can get caught up in the hype, and end up never writing. Ultimately I concluded that taking notes and concocting a structure is a personal endeavour, the initial step in building an organic environment that meets one's requirements, flow, use case, groove, feng shui, etc., i.e., **find what works for you and just start__.
 
 ## PKM: Journey & Goals
 
@@ -16,8 +16,9 @@ These are questions I asked of myself and my answers which helped me think about
 
 1. Do you currently use note-taking software, and why do you want to change?
    * Replace OneNote (and be free)
-     * It is one well-rounded note-taking application and the primary reason I'm still on Windows, while I'd prefer to switch Linux (needs to be platform independent).
+     * It is one well-rounded note-taking application and the primary reason I'm still on Windows, so my note-taking tools need to be OS independent.
      * Using OneNote allowed me to preserve that familiar "notebook" structure, which is great for lectures, with the added benefit of drawing, pictures & OCR, search, attaching files, and formatting all in the same application.
+       * While it would hard to replicate many of the features, OneNote essentially is a wrapper that included everything in one neat application. I'll have to use multiple tools or custom scripts, but the end result should be the same.
    * Proprietary format
      * What happens if the software is discontinued?
      * Hard to share outside raw files.
@@ -28,10 +29,10 @@ These are questions I asked of myself and my answers which helped me think about
      * Similar with notebooks, followed by sections and pages.
      * I'd like to keep this structure for some material.
    * 2nd structure: write, collect, & retrieve.
-     * Akin to an [infinite hammerspace](https://tvtropes.org/pmwiki/pmwiki.php/Main/Hammerspace) for notes; anything and everything placed in there can be retrieved later when needed, e.g., quotes from thinkers, books, etc., without having to give much thought to file categories (notes should still include backlinks).
+     * Akin to an [infinite hammerspace](https://tvtropes.org/pmwiki/pmwiki.php/Main/Hammerspace) for notes; anything and everything placed in there can be retrieved later when needed, e.g., quotes from thinkers, books, etc., without having to give much thought to folder categories. Instead organization and identification would be captured via backlinks and tagging.
 3. What is the end goal of note-taking?
    * Ease and simplicity to note-taking (*less is more* mentality)
-   * Shareability - this allows every notebook to be uploaded independent of other notebooks, or as a whole
+   * Shareability - this allows every "page" to be uploaded independent of other "folders", or as a whole
    * Flexibility and scalability - combine notes, folders, or split them
    * Version control
 
@@ -60,7 +61,7 @@ mybooks.root/
 │   │   ├── images/
 │   │   └── files/
 |   :
-│   ├── sections-and-pages...
+│   ├── sub-sections-and-pages...
 |   :
 │   ├── README.md
 |   └── .gitignore
@@ -70,7 +71,7 @@ mybooks.root/
 │   │   ├── images/
 │   │   └── files/
 |   :
-│   ├── sections-and-pages...
+│   ├── sub-sections-and-pages...
 |   :
 │   └── README.md
 |   :

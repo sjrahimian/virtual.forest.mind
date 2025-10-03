@@ -30,9 +30,9 @@ What is the end goal of note-taking?
 
 ### Why Another PKM Tool?
 
-I have been playing around with [*Foam*](https://foambubble.github.io/foam/) and [*Obsidian*](https://obsidian.md/), but having my own custom Python script `vfm/vfm.py` gave some minor control over certain details of the PKM, as well as meeting the goal of being eas. I'll likely use a combination of the my script and Foam and/or Obsidian.
+I have been playing around with [*Foam*](https://foambubble.github.io/foam/) and [*Obsidian*](https://obsidian.md/), but having my own custom Python script `vfm/vfm.py` gave some minor control over certain details of the PKM, as well as meeting the ease and simplicity goal. I'll likely use a combination of the my script and Foam or Obsidian.
 
-(Read about my learnings and thoughts on note-taking.)[./note-my-thoughts-on-note-taking.md]
+If you're interested, see [*my thoughts on note-taking*](./note-my-thoughts-on-note-taking.md) for a more detailed review on note-taking.
 
 Presenting a simple structure that can grow as needed:
 
