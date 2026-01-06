@@ -40,10 +40,11 @@ These are questions I asked of myself and my answers which helped me think about
 
 I settled on creating a plaintext/Markdown note-taking environment as the means of recording and tracking notes, because nothing in my search for a new note-taking app came close to OneNote (that Office-style ribbon is convenient) and the notebook style that I'm familiar with, but OneNote is limited to Windows and shackles the data in a proprietary format. I have been playing around with [*Foam*](https://foambubble.github.io/foam/) and [*Obsidian*](https://obsidian.md/), as well as my own custom Python script `vfm/vfm.py` in [virtual.forest.mind repository](https://github.com/sjrahimian/virtual.forest.mind).
 
-These two articles were helpful in deciding to move away from any one particular application:
+This material was helpful in deciding to move away from any one particular application:
 
 * [*How I'm able to take notes in mathematics lectures using LaTeX and Vim* by Gilles Castel](https://castel.dev/post/lecture-notes-1/)
 * [*How to Build a Zettelkasten: The simple way* by gsilvapt](https://gsilvapt.me/posts/building-a-zettelkasten-the-simple-way/)
+* [*Simple, Non-Commercial, Open Source Notes*](https://www.youtube.com/watch?v=XRpHIa-2XCE)
 
 ### Design
 
