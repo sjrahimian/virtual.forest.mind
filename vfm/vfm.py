@@ -6,7 +6,7 @@ vfm.py — Virtual Forest Mind CLI Tool
     Provides commands to create, search, and open Markdown notes in user-defined spaces, 
     using a configuration file for paths and editor settings.
 
-    Copyright (C) 2025  Sama Rahimian
+    Copyright (C) 2025, Sama Rahimian
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ vfm.py — Virtual Forest Mind CLI Tool
 
 """
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __author__ = "Sama Rahimian"
 __license__ = "GNU GPLv3"
 
@@ -40,7 +40,6 @@ import re
 import time
 from typing import List, Tuple, Optional
 
-CONFIG_FILE = Path(".vfm_conf")
 LIMIT_TAG_OUTPUT = 5
 TAGS = """---
 tags:
@@ -48,17 +47,33 @@ tags:
 ---
 """
 
-def ensure_config():
+def CONFIG_FILE() -> Path:
+    """
+    Return the directory where this script lives.
+    Works when run from anywhere and with symlinks.
+    """
+    fn = ".vfm_conf"
+
+    if getattr(sys, "frozen", False):
+        # for PyInstaller / frozen binaries
+        return (Path(sys.executable).resolve().parent) / fn
+    print(Path(__file__).resolve().parent)
+    return (Path(__file__).resolve().parent) / fn
+
+
+def config_exists(file):
     """Ensure config exists, else exit with error."""
-    if not CONFIG_FILE.exists():
-        print(f"Error: vfm.conf is missing. Run `{Path(sys.argv[0]).name} init` first.")
+    if not file.exists():
+        print(f'Error: "{file.name}" is missing. Run `{Path(sys.argv[0]).name} init` first.')
         sys.exit(1)
 
+    return file
+
 def load_config():
-    """Load config from vfm.conf"""
-    ensure_config()
+    """Load config from file"""
+    config_exists(CONFIG_FILE())
     parser = configparser.ConfigParser()
-    file_content = CONFIG_FILE.read_text(encoding="utf-8")
+    file_content = CONFIG_FILE().read_text(encoding="utf-8")
 
     # Wrap in a dummy section if no headers exist
     if not file_content.strip().startswith("["):
@@ -325,12 +340,12 @@ def handle_init():
         "public": Path("vfm.public"),
     }
 
-    if not CONFIG_FILE.exists():
+    if not CONFIG_FILE().exists():
         for key, directory in dirs.items():
             directory.mkdir(parents=True, exist_ok=True)
             print(f"Ensured directory: {directory}")
 
-        with CONFIG_FILE.open("w", encoding="utf-8") as f:
+        with CONFIG_FILE().open("w", encoding="utf-8") as f:
             f.write(
                 "[paths]\n"
                 f"space={dirs['space'].resolve()}\n"
@@ -339,9 +354,9 @@ def handle_init():
                 "[settings]\n"
                 "editor=code\n"
             )
-        print(f"Created config file: {CONFIG_FILE}")
+        print(f"Created config file: {CONFIG_FILE()}")
     else:
-        print(f"Virtual Forest Mind is already initalized.")
+        print(f"Virtual Forest Mind is already initialized.")
 
 def arguments():
     """Return the argument parser"""
@@ -381,4 +396,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print()
+        sys.exit(-1)
