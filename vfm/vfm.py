@@ -3,8 +3,10 @@
 """
 vfm.py — Virtual Forest Mind CLI Tool
 
-    Provides commands to create, search, and open Markdown notes in user-defined spaces, 
-    using a configuration file for paths and editor settings.
+    Yet another plaintext notetaking system.
+
+    Provides commands to initialize, create, search, and open Markdown 
+    notes (or any plaintext note) in a user-defined folder system.
 
     Copyright (C) 2025, Sama Rahimian
 
@@ -23,382 +25,419 @@ vfm.py — Virtual Forest Mind CLI Tool
 
 """
 
-__version__ = "0.1.2"
+__version__ = "1.1.0"
 __author__ = "Sama Rahimian"
 __license__ = "GNU GPLv3"
 
+from pathlib import Path
 import argparse
 import configparser
-from collections import Counter
-from datetime import datetime
-import os
-from pathlib import Path
+import sys
+import time
+import re
+import subprocess
 import shlex
 import shutil
-import subprocess
-import sys
-import re
-import time
-from typing import List, Tuple, Optional
+from typing import Optional
 
-LIMIT_TAG_OUTPUT = 5
+
+# ----------------------------
+# Path management
+# ----------------------------
+
+class PathManager:
+    def __init__(self):
+        self.script_dir = self._get_script_dir()
+        self.root_dir = Path.cwd()
+        self.config_file = self.script_dir / "vfm.conf"
+        self.template_dir = self.script_dir / "templates"
+        self.default_template = self.template_dir / "note.md"
+
+    @staticmethod
+    def _get_script_dir() -> Path:
+        if getattr(sys, "frozen", False):
+            # for PyInstaller / frozen binaries
+            return Path(sys.executable).resolve().parent
+
+        return Path(__file__).resolve().parent
+
+
+# ----------------------------
+# Config management
+# ----------------------------
+
+class ConfigManager:
+    def __init__(self, paths: PathManager):
+        self.paths = paths
+        self.parser = configparser.ConfigParser()
+        if "init" and "-h" and "--help" not in sys.argv:
+            self._load()
+
+    def _load(self):
+        if not self.paths.config_file.exists():
+            raise FileNotFoundError(f"Missing config file: {self.paths.config_file}\nFirst run: {Path(sys.argv[0]).name} [init|-h, --help]")
+        self.parser.read(self.paths.config_file)
+
+    @property
+    def spaces(self) -> dict:
+        return dict(self.parser["paths"]) if "paths" in self.parser else {}
+
+    @property
+    def editor(self) -> Optional[str]:
+        return self.parser.get("settings", "editor", fallback=None)
+
+
+# ----------------------------
+# Editor handling
+# ----------------------------
+
+class Editor:
+    def __init__(self, editor_cmd: Optional[str]):
+        self.editor_cmd = editor_cmd
+
+    def open(self, file_path: Path):
+        if not self.editor_cmd:
+            self._open_system_default(file_path)
+            return
+
+        parts = shlex.split(self.editor_cmd)
+        exe = parts[0]
+
+        if not Path(exe).exists():
+            resolved = shutil.which(exe)
+            if not resolved:
+                raise RuntimeError(f"Editor not found: {exe}")
+            parts[0] = resolved
+
+        subprocess.run(parts + [str(file_path)])
+
+    @staticmethod
+    def _open_system_default(path: Path):
+        if sys.platform.startswith("win"):
+            os.startfile(path)  # type: ignore
+        elif sys.platform == "darwin":
+            subprocess.run(["open", str(path)])
+        else:
+            subprocess.run(["xdg-open", str(path)])
+
+
+# ----------------------------
+# Notes
+# ----------------------------
 TAGS = """---
 tags:
-  - add-tag
+  - new-note-tag
 ---
 """
 
-def CONFIG_FILE() -> Path:
-    """
-    Return the directory where this script lives.
-    Works when run from anywhere and with symlinks.
-    """
-    fn = ".vfm_conf"
+class NoteManager:
+    def __init__(self, paths: PathManager, config: ConfigManager):
+        self.paths = paths
+        self.config = config
 
-    if getattr(sys, "frozen", False):
-        # for PyInstaller / frozen binaries
-        return (Path(sys.executable).resolve().parent) / fn
+    def create(self, target: str) -> Path:
+        base_dir = self._resolve_target(target)
+        base_dir.mkdir(parents=True, exist_ok=True)
 
-    return (Path(__file__).resolve().parent) / fn
+        # Ask for filename
+        default = "new-note"
+        name = input(f"Filename [{default}]: ").strip() or default
 
+        # Append epoch + extension
+        epoch = int(time.time())
+        file_path = base_dir / f"{name}-{epoch}.md"
+        content = self._load_template()
 
-def config_exists(file):
-    """Ensure config exists, else exit with error."""
-    if not file.exists():
-        print(f'Error: "{file.name}" is missing. Run `{Path(sys.argv[0]).name} init` first.')
-        sys.exit(1)
+        file_path.write_text(content, encoding="utf-8")
+        print(f"Created: {file_path}")
+        return file_path
 
-    return file
+    def _resolve_target(self, target: str) -> Path:
+        if target in self.config.spaces:
+            return Path(self.config.spaces[target]).expanduser().resolve()
+        return Path(target).expanduser().resolve()
 
-def load_config():
-    """Load config from file"""
-    config_exists(CONFIG_FILE())
-    parser = configparser.ConfigParser()
-    file_content = CONFIG_FILE().read_text(encoding="utf-8")
+    def _load_template(self) -> str:
+        tmpl = self.paths.default_template
+        if tmpl.exists():
+            return tmpl.read_text(encoding="utf-8")
+        return f"{TAGS}\n# Welcome Note!\n\n_created:_ {epoch} // {datetime.now()}\n\n"
 
-    # Wrap in a dummy section if no headers exist
-    if not file_content.strip().startswith("["):
-        file_content = "[paths]\n" + file_content
+# ----------------------------
+# Initialize
+# ----------------------------
 
-    parser.read_string(file_content)
-    paths = dict(parser["paths"])
+class InitManager(NoteManager):
+    def __init__(self, paths: PathManager):
+        self.paths = paths
+        self.paths.config_file = self.paths.root_dir / self.paths.config_file.name
+        self._handle_init()
 
-    settings = {}
-    if "settings" in parser:
-        settings = dict(parser["settings"])
-    # print(settings)
-    # print(paths)
-    return paths, settings
-
-# --- Helper: find first H1 (# single hash) line ---
-def extract_h1_title(text: str) -> Optional[str]:
-    """
-    Return the first line that starts with a single '#' (space after), trimmed.
-    Skip lines starting with '##' or more.
-    """
-    for line in text.splitlines():
-        m = re.match(r'^\s*#\s+(.*\S)', line)
-        if m:
-            return m.group(1).strip()
-    return None
-
-# --- The search handler ---
-def handle_search(target: str, pattern: str, ignore_case: bool = False) -> None:
-    """
-    Search .md files under a target (keyword/path) for a regex/pattern.
-    If target == "all", search all configured paths.
-    """
-    # Load config to get paths (and ignore settings here)
-    try:
-        paths_cfg, settings = load_config()
-    except Exception:
-        # If load_config only returns paths, handle that
-        cfg = load_config()
-        if isinstance(cfg, tuple) and len(cfg) == 2:
-            paths_cfg, settings = cfg
-        else:
-            paths_cfg = cfg
-            settings = {}
-
-    # Resolve list of directories to search
-    search_dirs: List[Path] = []
-    if target == "all":
-        for p in paths_cfg.values():
-            search_dirs.append(Path(p).expanduser().resolve())
-    else:
-        if target in paths_cfg:
-            search_dirs.append(Path(paths_cfg[target]).expanduser().resolve())
-        else:
-            # treat target as a path
-            search_dirs.append(Path(target).expanduser().resolve())
-
-    # Compile regex
-    flags = re.IGNORECASE if ignore_case else 0
-    try:
-        regex = re.compile(pattern, flags)
-    except re.error as e:
-        print(f"Invalid regular expression: {e}")
-        return
-
-    # Find matches
-    matches: List[Tuple[Path, str, str]] = []  # (file_path, first_h1_or_empty, excerpt_line)
-    seen: set[Path] = set()  # keep track of files already added
-    for d in search_dirs:
-        if not d.exists() or not d.is_dir():
-            continue
-
-        for md in d.rglob("*.md"):
-            if md in seen:
-                continue
-
-            try:
-                text = md.read_text(encoding="utf-8", errors="ignore")
-            except Exception:
-                continue
-
-            if regex.search(text):
-                h1 = extract_h1_title(text) or ""
-                # find first matching line to show a short excerpt (optional)
-                excerpt = ""
-                for line in text.splitlines():
-                    if regex.search(line):
-                        excerpt = line.strip() if len(line) <= 100 else (line[0:100].strip()) + "..."
-                        break
-                matches.append((md, h1, excerpt))
-                seen.add(md)
-
-    # Respond based on number of matches
-    if not matches:
-        print("No files matched the search.")
-        return
-
-    if len(matches) == 1:
-        file_path = matches[0][0]
-        print(f"One match: {file_path}")
-        handle_open(filename=file_path)
-        return
-
-    # Multiple matches — present menu
-    while True:
-        print("Multiple matches found:")
-        for i, (fp, h1, excerpt) in enumerate(matches, start=1):
-            # Show path relative to cwd if possible to keep it concise
-            try:
-                fp_display = fp.relative_to(Path.cwd())
-            except Exception:
-                fp_display = fp
-
-            title_display = f" — {h1}" if h1 else ""
-            excerpt_display = f"   | {excerpt}" if excerpt else ""
-            print(f"{i}. {fp_display.parent.name}/{fp_display.name}{title_display}\n{excerpt_display}")
-            # print(f"  {i}. {fp_display.name}{title_display}")
-
-        # Prompt user for selection
-        try:
-            choice = input("Select file number to open (or press Enter to cancel): ").strip()
-            if not choice:
-                print("Canceled.")
-                sys.exit(0)
-
-            idx = int(choice)
-            if 1 <= idx <= len(matches):
-                chosen = matches[idx - 1][0]
-                handle_open(filename=chosen)
-            else:
-                print("Invalid selection.")
-        except ValueError:
-            print("Invalid input. Please enter a number.")
-
-def handle_open(filename: str, target: str=None):
-    """Open a note in the editor defined in config (settings.editor)."""
-    paths, settings = load_config()
-    print("Opening ...")
-
-    # Resolve base directory
-    if target in paths:
-        base_path = Path(paths[target]).expanduser().resolve()
-    elif target:
-        base_path = Path(target).expanduser().resolve()
-    
-    file_path = base_path / filename if target else filename
-    if not file_path.exists():
-        print(f"Error: File '{file_path}' does not exist.")
-        return
-
-    # Editor from config
-    editor = settings.get("editor")
-    if not editor:
-        # fallback to system default
-        if os.name == "nt":
-            os.startfile(file_path)  # type: ignore[attr-defined]
-        elif sys.platform == "darwin":
-            subprocess.run(["open", str(file_path)])
-        else:
-            subprocess.run(["xdg-open", str(file_path)])
-        return
-
-    # Parse editor string (can include flags)
-    parts = shlex.split(editor)
-
-    # If first part is not a path, try to resolve with shutil.which
-    exe = parts[0]
-    if not Path(exe).exists():
-        resolved = shutil.which(exe)
-        if resolved:
-            parts[0] = resolved
-        else:
-            print(f"Error: Editor '{exe}' not found on PATH.")
-            raise RuntimeError(f"Editor not found: {exe}")
+    def _handle_init(self):
+        if self.paths.config_file.exists():
+            print(f"Virtual Forest Mind has already been initialized.")
             return
 
-    # Final command
-    cmd = parts + [str(file_path)]
-    subprocess.run(cmd)
+        dirs = {
+            "space": Path("vfm.space"),
+            "private": Path("vfm.private"),
+            "public": Path("vfm.public"),
+        }
 
-
-def handle_stats(target: str):
-    """Show statistics about notes in a given space (or all)."""
-    from collections import Counter
-
-    paths, settings = load_config()
-
-    # If "all", scan all spaces
-    if target == "all":
-        paths = [Path(p) for p in paths.values()]
-    else:
-        if target in paths:
-            paths = [Path(paths[target])]
-        else:
-            paths = [Path(target).expanduser().resolve()]
-    note_files = []
-    for path in paths:
-        if path.exists():
-            note_files.extend(path.glob("*.md"))
-
-    total_notes = len(note_files)
-    total_words = 0
-    tag_counter = Counter()
-
-    tag_pattern = re.compile(r"^tags:\s*(?:- .+|\[.+\])", re.IGNORECASE)
-
-    for file in note_files:
-        text = file.read_text(encoding="utf-8")
-        total_words += len(text.split())
-
-        # extract tags from YAML frontmatter if present
-        if text.startswith("---"):
-            parts = text.split("---", 2)
-            if len(parts) > 2:
-                frontmatter = parts[1]
-                for line in frontmatter.splitlines():
-                    if line.strip().startswith("- "):  # YAML list style
-                        tag_counter[line.strip()[2:]] += 1
-
-    print(f"Total notes: {total_notes}")
-    print(f"Total words: {total_words}")
-    if tag_counter:
-        print("Top tags:")
-        for tag, count in tag_counter.most_common(LIMIT_TAG_OUTPUT):
-            print(f"  {tag}: {count}")
-
-def handle_new(target: str):
-    """Handle the 'new' command"""
-    paths, settings = load_config()
-
-
-    # Resolve target as keyword or path
-    if target in paths:
-        path = Path(paths[target]).expanduser().resolve()
-    else:
-        path = Path(target).expanduser().resolve()
-
-    if not path.exists():
-        print(f"Error: Path '{path}' does not exist.")
-        return
-
-    # Ask for filename
-    default_name = "New Entry"
-    user_input = input(f"Enter filename [{default_name}]: ").strip()
-    if not user_input:
-        user_input = default_name
-
-    # Append epoch + extension
-    epoch = int(time.time())
-    final_name = f"quote-{epoch}.md"
-    full_path = path / final_name
-
-    # Create file
-    full_path.write_text(f"{TAGS}\n# {user_input} - {epoch}\n\n_Created:_ {epoch} // {datetime.now()}", encoding="utf-8")
-    print(f"Created: {full_path}")
-
-    handle_open(filename=full_path)
-
-def handle_init():
-    """Handle the 'init' command: create directories + config"""
-    dirs = {
-        "space": Path("vfm.space"),
-        "private": Path("vfm.private"),
-        "public": Path("vfm.public"),
-    }
-
-    if not CONFIG_FILE().exists():
         for key, directory in dirs.items():
             directory.mkdir(parents=True, exist_ok=True)
-            print(f"Ensured directory: {directory}")
 
-        with CONFIG_FILE().open("w", encoding="utf-8") as f:
-            f.write(
-                "[paths]\n"
-                f"space={dirs['space'].resolve()}\n"
-                f"private={dirs['private'].resolve()}\n"
-                f"public={dirs['public'].resolve()}\n\n"
-                "[settings]\n"
-                "editor=code\n"
-            )
-        print(f"Created config file: {CONFIG_FILE()}")
-    else:
-        print(f"Virtual Forest Mind is already initialized.")
+        self.paths.config_file.write_text(self._default_config(), encoding="utf-8")
+        
+        root = self.paths.config_file.cwd() / "vfm"
+        print(f"Config file created: {self.paths.config_file}")
+        print(f"Workspace: {root}")
+        # note = self.create("private")
+        # print(f"Initial note: {note}")cls
+        print("VFM initialized successfully.")
 
-def arguments():
-    """Return the argument parser"""
-    parser = argparse.ArgumentParser(description="Virtual Forest Mind CLI")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    def _default_config(self) -> str:
+        return """# vfm configuration
 
-    # "init" command
-    subparsers.add_parser("init", help="Initialize directories and config")
+[paths]
+space = vfm/vfm.space
+private = vfm/vfm.private
+public = vfm/vfm.public
 
-    # "new" command
-    new_parser = subparsers.add_parser("new", help="Create a new note")
-    new_parser.add_argument("target", type=str, help="Path or keyword from config")
+[editor]
+default = codium
+"""
 
-    # "stats" command
-    stats_parser = subparsers.add_parser("stats", help="Output statistics: number of notes, most active space, total words")
-    stats_parser.add_argument("target", type=str, help="Path or keyword from config")
+# ----------------------------
+# Search
+# ----------------------------
 
-    # "search" command
-    search_parser = subparsers.add_parser("search", help="egrep-like search in a space/path")
-    search_parser.add_argument("target", type=str, nargs="?", default="all", help="Optional space keyword or path to search (default: all configured spaces)")
-    search_parser.add_argument("pattern", help="Regex or plain text to search for")
-    search_parser.add_argument("-i", "--ignore-case", action="store_false", help="Perform case-insensitive search")
+class SearchManager:
+    def __init__(self, config: ConfigManager, editor: Editor):
+        self.config = config
+        self.editor = editor
 
-    return parser.parse_args()
+    def search(self, target: str, pattern: str, ignore_case: bool):
+        flags = re.IGNORECASE if ignore_case else 0
+        regex = re.compile(pattern, flags)
 
-def main():
-    args = arguments()
-    if args.command == "new":
-        handle_new(args.target)
-    elif args.command == "stats":
-        handle_stats(args.target)
-    elif args.command == "init":
-        print("Seeding the virtual forest mind...")
-        handle_init()
-    elif args.command == "search":
-        handle_search(args.target, args.pattern, args.ignore_case)
+        dirs = self._resolve_dirs(target)
+        matches = []
+        seen = set()
 
+        for d in dirs:
+            for md in d.rglob("*.md"):
+                if md in seen:
+                    continue
+                try:
+                    text = md.read_text(encoding="utf-8", errors="ignore")
+                except Exception:
+                    continue
+                if regex.search(text):
+                    title = self._extract_h1(text)
+                    matches.append((md, title))
+                    seen.add(md)
+
+        self._handle_results(matches)
+
+    def _resolve_dirs(self, target: str):
+        if target == "all":
+            return [Path(p).expanduser().resolve() for p in self.config.spaces.values()]
+        if target in self.config.spaces:
+            return [Path(self.config.spaces[target]).expanduser().resolve()]
+        return [Path(target).expanduser().resolve()]
+
+    @staticmethod
+    def _extract_h1(text: str) -> Optional[str]:
+        for line in text.splitlines():
+            if line.startswith("# ") and not line.startswith("##"):
+                return line[2:].strip()
+        return None
+
+    def _handle_results(self, matches):
+        if not matches:
+            print("No matches found.")
+            return
+
+        if len(matches) == 1:
+            self.editor.open(matches[0][0])
+            return
+
+        for i, (fp, title) in enumerate(matches, 1):
+            parent = fp.parent.name
+            label = f"{parent}/{fp.name}"
+            if title:
+                label += f" — {title}"
+            print(f"{i}. {label}")
+
+        choice = input("Select file number to open: ").strip()
+        if choice.isdigit():
+            idx = int(choice) - 1
+            if 0 <= idx < len(matches):
+                self.editor.open(matches[idx][0])
+
+# ----------------------------
+# Statistics Manager
+# ----------------------------
+
+class StatsManager:
+    def __init__(self, config: ConfigManager):
+        self.config = config
+
+    def stats(self, target: str):
+        dirs = self._resolve_dirs(target)
+
+        file_count = 0
+        dir_count = 0
+        line_count = 0
+        word_count = 0
+
+        for d in dirs:
+            if not d.exists() or not d.is_dir():
+                continue
+
+            for p in d.rglob("*"):
+                if p.is_dir():
+                    dir_count += 1
+                elif p.is_file() and p.suffix.lower() == ".md":
+                    file_count += 1
+                    try:
+                        text = p.read_text(encoding="utf-8", errors="ignore")
+                    except Exception:
+                        continue
+                    lines = text.splitlines()
+                    line_count += len(lines)
+                    word_count += sum(len(line.split()) for line in lines)
+
+        self._print_stats(target, file_count, dir_count, line_count, word_count)
+        self.count_tags(target)
+
+    def _resolve_dirs(self, target: str):
+        if target == "all":
+            return [Path(p).expanduser().resolve() for p in self.config.spaces.values()]
+        if target in self.config.spaces:
+            return [Path(self.config.spaces[target]).expanduser().resolve()]
+        return [Path(target).expanduser().resolve()]
+
+    @staticmethod
+    def _print_stats(target, files, dirs, lines, words):
+        print(f"\nStats for: {target}")
+        print("-" * 30)
+        print(f"Directories : {dirs}")
+        print(f"Markdown files : {files}")
+        print(f"Total lines : {lines}")
+        print(f"Total words : {words}")
+    
+    def count_tags(self, target: str, limit: int = 10):
+        """
+        Count YAML frontmatter tags across markdown files.
+        Expects tags in YAML list form:
+            ---
+            tags:
+              - tag1
+              - tag2
+            ---
+        """
+        dirs = self._resolve_dirs(target)
+        tag_counter = Counter()
+
+        for d in dirs:
+            if not d.exists() or not d.is_dir():
+                continue
+
+            for md in d.rglob("*.md"):
+                try:
+                    text = md.read_text(encoding="utf-8", errors="ignore")
+                except Exception:
+                    continue
+
+                if not text.startswith("---"):
+                    continue
+
+                parts = text.split("---", 2)
+                if len(parts) < 3:
+                    continue
+
+                frontmatter = parts[1]
+                for line in frontmatter.splitlines():
+                    line = line.strip()
+                    if line.startswith("- "):  # YAML list-style tag
+                        tag = line[2:].strip()
+                        if tag:
+                            tag_counter[tag] += 1
+
+        if not tag_counter:
+            print("No tags found.")
+            return
+
+        print("\nTop tags:")
+        for tag, count in tag_counter.most_common(limit):
+            print(f"  {tag}: {count}")
+
+# ----------------------------
+# App / CLI
+# ----------------------------
+
+class VFMApp:
+    def __init__(self):
+        self.paths = PathManager()
+        self.config = ConfigManager(self.paths)
+        self.editor = Editor(self.config.editor)
+        self.notes = NoteManager(self.paths, self.config)
+        self.searcher = SearchManager(self.config, self.editor)
+        self.stats = StatsManager(self.config)
+
+    def run(self):
+        parser = self._build_parser()
+        args = parser.parse_args()
+
+        if args.command == "init":
+            print("Seeding the virtual forest mind...")
+            InitManager(self.paths)
+        elif args.command == "new":
+            self.notes.create(args.target)
+        elif args.command == "search":
+            self.searcher.search(args.target, args.pattern, args.ignore_case)
+        elif args.command == "stats":
+            self.stats.stats(args.target)
+
+    @staticmethod
+    def _build_parser():
+        parser = argparse.ArgumentParser(description="Virtual Forest Mind CLI is a plaintext notetaking system.")
+        subparsers = parser.add_subparsers(dest="command", required=True)
+        
+        # "init" command
+        subparsers.add_parser("init", help="Initialize directories and config")
+
+        # "new" command
+        p_new = subparsers.add_parser("new", help="Create a new note")
+        p_new.add_argument("target", type=str, help="Path or space keyword")
+
+        # "stats" command
+        p_stats = subparsers.add_parser("stats", help="Output statistics: number of notes, most active space, total words")
+        p_stats.add_argument("target", type=str, help="Path or keyword from config")
+
+        # "search" command
+        p_search = subparsers.add_parser("search", help="Search notes")
+        p_search.add_argument("target", type=str, nargs="?", default="all", help="Optional space keyword or path to search (default: all)")
+        p_search.add_argument("pattern", help="Regex or plain text to search for")
+        p_search.add_argument("-i", "--ignore-case", action="store_false", help="Perform case-insensitive search")
+
+        return parser
+
+
+# ----------------------------
+# Entry
+# ----------------------------
 
 if __name__ == "__main__":
     try:
-        main()
+        VFMApp().run()
+    except FileNotFoundError as e:
+        print()
+        print(e)
+        print()
+        sys.exit(0)
     except KeyboardInterrupt:
         print()
         sys.exit(-1)
