@@ -3,8 +3,10 @@
 """
 vfm.py — Virtual Forest Mind CLI Tool
 
-    Provides commands to create, search, and open Markdown notes in user-defined spaces, 
-    using a configuration file for paths and editor settings.
+    Yet another plaintext notetaking system.
+
+    Provides commands to initialize, create, search, and open Markdown 
+    notes (or any plaintext note) in a user-defined folder system.
 
     Copyright (C) 2025, Sama Rahimian
 
@@ -23,7 +25,7 @@ vfm.py — Virtual Forest Mind CLI Tool
 
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __author__ = "Sama Rahimian"
 __license__ = "GNU GPLv3"
 
@@ -68,12 +70,12 @@ class ConfigManager:
     def __init__(self, paths: PathManager):
         self.paths = paths
         self.parser = configparser.ConfigParser()
-        if "init" not in sys.argv:
+        if "init" and "-h" and "--help" not in sys.argv:
             self._load()
 
     def _load(self):
         if not self.paths.config_file.exists():
-            raise FileNotFoundError(f"Missing config file: {self.paths.config_file}\nFirst run: {Path(sys.argv[0]).name} init")
+            raise FileNotFoundError(f"Missing config file: {self.paths.config_file}\nFirst run: {Path(sys.argv[0]).name} [init|-h, --help]")
         self.parser.read(self.paths.config_file)
 
     @property
@@ -401,7 +403,7 @@ class VFMApp:
 
     @staticmethod
     def _build_parser():
-        parser = argparse.ArgumentParser(description="Virtual Forest Mind CLI")
+        parser = argparse.ArgumentParser(description="Virtual Forest Mind CLI is a plaintext notetaking system.")
         subparsers = parser.add_subparsers(dest="command", required=True)
         
         # "init" command
