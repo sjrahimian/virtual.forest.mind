@@ -46,6 +46,7 @@ from typing import Optional
 class PathManager:
     def __init__(self):
         self.script_dir = self._get_script_dir()
+        self.root_dir = Path.cwd()
         self.config_file = self.script_dir / "vfm.conf"
         self.template_dir = self.script_dir / "templates"
         self.default_template = self.template_dir / "note.md"
@@ -67,11 +68,12 @@ class ConfigManager:
     def __init__(self, paths: PathManager):
         self.paths = paths
         self.parser = configparser.ConfigParser()
-        self._load()
+        if "init" not in sys.argv:
+            self._load()
 
     def _load(self):
         if not self.paths.config_file.exists():
-            raise FileNotFoundError(f"Missing config file: {self.paths.config_file}")
+            raise FileNotFoundError(f"Missing config file: {self.paths.config_file}\nFirst run: {Path(sys.argv[0]).name} init")
         self.parser.read(self.paths.config_file)
 
     @property
@@ -122,7 +124,7 @@ class Editor:
 # ----------------------------
 TAGS = """---
 tags:
-  - add-tag
+  - new-note-tag
 ---
 """
 
@@ -131,7 +133,7 @@ class NoteManager:
         self.paths = paths
         self.config = config
 
-    def create(self, target: str):
+    def create(self, target: str) -> Path:
         base_dir = self._resolve_target(target)
         base_dir.mkdir(parents=True, exist_ok=True)
 
@@ -146,6 +148,7 @@ class NoteManager:
 
         file_path.write_text(content, encoding="utf-8")
         print(f"Created: {file_path}")
+        return file_path
 
     def _resolve_target(self, target: str) -> Path:
         if target in self.config.spaces:
@@ -156,8 +159,52 @@ class NoteManager:
         tmpl = self.paths.default_template
         if tmpl.exists():
             return tmpl.read_text(encoding="utf-8")
-        return f"{TAGS}\n# New Note Title\n\n_Created:_ {epoch} // {datetime.now()}\n\n"
+        return f"{TAGS}\n# Welcome Note!\n\n_created:_ {epoch} // {datetime.now()}\n\n"
 
+# ----------------------------
+# Initialize
+# ----------------------------
+
+class InitManager(NoteManager):
+    def __init__(self, paths: PathManager):
+        self.paths = paths
+        self.paths.config_file = self.paths.root_dir / self.paths.config_file.name
+        self._handle_init()
+
+    def _handle_init(self):
+        if self.paths.config_file.exists():
+            print(f"Virtual Forest Mind has already been initialized.")
+            return
+
+        dirs = {
+            "space": Path("vfm.space"),
+            "private": Path("vfm.private"),
+            "public": Path("vfm.public"),
+        }
+
+        for key, directory in dirs.items():
+            directory.mkdir(parents=True, exist_ok=True)
+
+        self.paths.config_file.write_text(self._default_config(), encoding="utf-8")
+        
+        root = self.paths.config_file.cwd() / "vfm"
+        print(f"Config file created: {self.paths.config_file}")
+        print(f"Workspace: {root}")
+        # note = self.create("private")
+        # print(f"Initial note: {note}")cls
+        print("VFM initialized successfully.")
+
+    def _default_config(self) -> str:
+        return """# vfm configuration
+
+[paths]
+space = vfm/vfm.space
+private = vfm/vfm.private
+public = vfm/vfm.public
+
+[editor]
+default = codium
+"""
 
 # ----------------------------
 # Search
@@ -342,7 +389,10 @@ class VFMApp:
         parser = self._build_parser()
         args = parser.parse_args()
 
-        if args.command == "new":
+        if args.command == "init":
+            print("Seeding the virtual forest mind...")
+            InitManager(self.paths)
+        elif args.command == "new":
             self.notes.create(args.target)
         elif args.command == "search":
             self.searcher.search(args.target, args.pattern, args.ignore_case)
@@ -351,19 +401,22 @@ class VFMApp:
 
     @staticmethod
     def _build_parser():
-        parser = argparse.ArgumentParser(description="Virtual Forest Mind")
-        subs = parser.add_subparsers(dest="command", required=True)
+        parser = argparse.ArgumentParser(description="Virtual Forest Mind CLI")
+        subparsers = parser.add_subparsers(dest="command", required=True)
+        
+        # "init" command
+        subparsers.add_parser("init", help="Initialize directories and config")
 
         # "new" command
-        p_new = subs.add_parser("new", help="Create a new note")
+        p_new = subparsers.add_parser("new", help="Create a new note")
         p_new.add_argument("target", type=str, help="Path or space keyword")
 
         # "stats" command
-        stats_parser = subparsers.add_parser("stats", help="Output statistics: number of notes, most active space, total words")
-        stats_parser.add_argument("target", type=str, help="Path or keyword from config")
+        p_stats = subparsers.add_parser("stats", help="Output statistics: number of notes, most active space, total words")
+        p_stats.add_argument("target", type=str, help="Path or keyword from config")
 
         # "search" command
-        p_search = subs.add_parser("search", help="Search notes")
+        p_search = subparsers.add_parser("search", help="Search notes")
         p_search.add_argument("target", type=str, nargs="?", default="all", help="Optional space keyword or path to search (default: all)")
         p_search.add_argument("pattern", help="Regex or plain text to search for")
         p_search.add_argument("-i", "--ignore-case", action="store_false", help="Perform case-insensitive search")
@@ -376,9 +429,13 @@ class VFMApp:
 # ----------------------------
 
 if __name__ == "__main__":
-    VFMApp().run()
     try:
-        main()
+        VFMApp().run()
+    except FileNotFoundError as e:
+        print()
+        print(e)
+        print()
+        sys.exit(0)
     except KeyboardInterrupt:
         print()
         sys.exit(-1)
