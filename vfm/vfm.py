@@ -29,6 +29,7 @@ __license__ = "GNU GPLv3"
 
 import argparse
 import configparser
+from collections import Counter
 from datetime import datetime
 import os
 from pathlib import Path
@@ -57,7 +58,7 @@ def CONFIG_FILE() -> Path:
     if getattr(sys, "frozen", False):
         # for PyInstaller / frozen binaries
         return (Path(sys.executable).resolve().parent) / fn
-    print(Path(__file__).resolve().parent)
+
     return (Path(__file__).resolve().parent) / fn
 
 
@@ -211,6 +212,7 @@ def handle_search(target: str, pattern: str, ignore_case: bool = False) -> None:
 def handle_open(filename: str, target: str=None):
     """Open a note in the editor defined in config (settings.editor)."""
     paths, settings = load_config()
+    print("Opening ...")
 
     # Resolve base directory
     if target in paths:
@@ -246,14 +248,13 @@ def handle_open(filename: str, target: str=None):
             parts[0] = resolved
         else:
             print(f"Error: Editor '{exe}' not found on PATH.")
+            raise RuntimeError(f"Editor not found: {exe}")
             return
 
     # Final command
     cmd = parts + [str(file_path)]
-    try:
-        subprocess.run(cmd)
-    except Exception as e:
-        print(f"Error launching editor: {e}")
+    subprocess.run(cmd)
+
 
 def handle_stats(target: str):
     """Show statistics about notes in a given space (or all)."""
@@ -378,7 +379,7 @@ def arguments():
     search_parser = subparsers.add_parser("search", help="egrep-like search in a space/path")
     search_parser.add_argument("target", type=str, nargs="?", default="all", help="Optional space keyword or path to search (default: all configured spaces)")
     search_parser.add_argument("pattern", help="Regex or plain text to search for")
-    search_parser.add_argument("-i", "--ignore-case", action="store_true", help="Perform case-insensitive search")
+    search_parser.add_argument("-i", "--ignore-case", action="store_false", help="Perform case-insensitive search")
 
     return parser.parse_args()
 
