@@ -29,9 +29,7 @@ jobs:
 
       - name: Build Windows EXE
         run: |
-          pyinstaller --onefile --name vfm ^
-            --add-data "vfm/templates;templates" ^
-            vfm/vfm.py
+          pyinstaller --onefile --name vfm vfm/vfm.py
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -66,9 +64,8 @@ jobs:
 
       - name: Build Linux binary
         run: |
-          pyinstaller --onefile --name vfm \
-            --add-data "vfm/templates:templates"
-
+          pyinstaller --onefile --name vfm vfm/vfm.py
+          
       - name: Upload Linux binary to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
