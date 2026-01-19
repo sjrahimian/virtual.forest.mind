@@ -2,12 +2,14 @@ name: Build VFM binaries
 
 on:
   push:
-    branches: [ "master" ]
     tags:
       - "v*"
   workflow_dispatch:
   release:
     types: [created]
+
+permissions:
+  contents: write
 
 jobs:
   build-windows:
