@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-vfm.py — Virtual Forest Mind CLI Tool
+""" Virtual Forest Mind CLI Tool
 
     Yet another plaintext notetaking system.
 
