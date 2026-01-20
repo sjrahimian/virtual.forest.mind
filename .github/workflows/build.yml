@@ -34,9 +34,9 @@ jobs:
         shell: bash
         run: |
           VERSION=$(python - << 'EOF'
-      from vfm.vfm import __version__
-      print(__version__)
-      EOF
+          from vfm.vfm import __version__
+          print(__version__)
+          EOF
           )
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
@@ -91,10 +91,10 @@ jobs:
         shell: bash
         run: |
           VERSION=$(python - << 'EOF'
-      from vfm.vfm import __version__
-      print(__version__)
-      EOF
-          )
+          from vfm.vfm import __version__
+          print(__version__)
+          EOF
+              )
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Verify tag matches version
