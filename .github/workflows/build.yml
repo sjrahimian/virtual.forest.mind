@@ -54,7 +54,7 @@ jobs:
         run: |
           pyinstaller --onefile --name vfm vfm/vfm.py
 
-          rename dist\vfm.exe vfm-${{ steps.version.outputs.version }}-windows.exe
+          Rename-Item dist\vfm.exe vfm-${{ steps.version.outputs.version }}-windows.exe
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -109,10 +109,10 @@ jobs:
 
       - name: Build Linux binary
         run: |
-          pyinstaller --onefile --name vfm vfm/vfm.py
+          pyinstaller --onefile --name vfm-${{ steps.version.outputs.version }} vfm/vfm.py
           
       - name: Upload Linux binary to Release
         if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/vfm
+          files: dist/vfm-${{ steps.version.outputs.version }}
