@@ -2,6 +2,12 @@
 
 Provides commands to create, search, and open Markdown notes in user-defined spaces, using a configuration file for paths and editor settings.
 
+## Setup
+
+Basic usage and setup on Linux.
+
+### Usage
+
 ```bash
 python .\vfm.py --help
 usage: vfm.py [-h] {init,new,stats,search} ...
@@ -19,7 +25,15 @@ options:
   -h, --help            show this help message and exit
 ```
 
-## Personal Knowledge Management: Goals
+### Install
+
+Place either just outside or inside the root folder and change the permissions, or to make it system wide on Linux:
+
+```bash
+install -Dm755 vfm /usr/local/vfm/vfm
+```
+
+## Personal Knowledge Management: Backstory
 
 What is the end goal of note-taking?
 
