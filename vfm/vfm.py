@@ -379,6 +379,7 @@ class StatsManager:
 
 class VFMApp:
     def __init__(self):
+        self.args = (self._build_parser()).parse_args()
         self.paths = PathManager()
         self.config = ConfigManager(self.paths)
         self.editor = Editor(self.config.editor)
@@ -387,22 +388,21 @@ class VFMApp:
         self.stats = StatsManager(self.config)
 
     def run(self):
-        parser = self._build_parser()
-        args = parser.parse_args()
 
-        if args.command == "init":
+        if self.args.command == "init":
             print("Seeding the virtual forest mind...")
             InitManager(self.paths)
-        elif args.command == "new":
+        elif self.args.command == "new":
             self.notes.create(args.target)
-        elif args.command == "search":
-            self.searcher.search(args.target, args.pattern, args.ignore_case)
-        elif args.command == "stats":
-            self.stats.stats(args.target)
+        elif self.args.command == "search":
+            self.searcher.search(self.args.target, self.args.pattern, self.args.ignore_case)
+        elif self.args.command == "stats":
+            self.stats.stats(self.args.target)
 
     @staticmethod
     def _build_parser():
         parser = argparse.ArgumentParser(description="Virtual Forest Mind CLI is a plaintext notetaking system.")
+        parser.add_argument("--version", action="version", version=f"vfm {__version__}")
         subparsers = parser.add_subparsers(dest="command", required=True)
         
         # "init" command
